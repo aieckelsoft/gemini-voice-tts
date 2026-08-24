@@ -117,6 +117,7 @@ Examples:
     parser.add_argument("--api-key", help="Explicit Gemini API key for this run")
     parser.add_argument("--list-voices", action="store_true", help="List all available voice personalities")
     parser.add_argument("--list-styles", action="store_true", help="List all available speech style presets")
+    parser.add_argument("--no-director", action="store_true", help="Disable AI Director (do not auto-inject emotion tags into plain text)")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
     args = parser.parse_args()
@@ -167,8 +168,7 @@ Examples:
         text = get_clipboard_text().strip()
         if not text:
             print("📋 Clipboard is currently empty.")
-            print("   👉 Highlight text anywhere, press Ctrl+C, and run 'gemini-tts' again.")
-            print("   👉 Or pass text directly: gemini-tts \"Hello!\"")
+            print("   👉 Highlight text anywhere, press Double-Ctrl+C (Ctrl+C+C) or run 'tts'.")
             sys.exit(0)
         preview = text.replace("\n", " ")
         if len(preview) > 60:
@@ -186,6 +186,7 @@ Examples:
         style=args.style,
         custom_prompt=args.prompt,
         api_key=args.api_key,
+        auto_director=not args.no_director,
         output_file=args.output,
     )
     sys.exit(0 if success else 1)

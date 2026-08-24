@@ -135,17 +135,22 @@ def _synthesize_single_chunk(
         return None
 
 
+from .director import enrich_with_emotions, has_emotion_tags
+
+
 def synthesize(
     text: str,
     voice: str = "Puck",
     style: str = "energetic",
     custom_prompt: Optional[str] = None,
     api_key: Optional[str] = None,
+    auto_director: bool = True,
     model: str = "gemini-2.5-flash-preview-tts",
 ) -> Optional[bytes]:
     """
     Synthesizes speech from text using Google's Gemini TTS API.
     Supports arbitrarily long texts via automatic intelligent chunking.
+    Auto-enriches plain text with emotion tags when auto_director is enabled.
     Returns complete WAV byte data on success, or None on failure.
     """
     key = resolve_api_key(api_key)
@@ -158,6 +163,12 @@ def synthesize(
     clean_text = text.strip()
     if not clean_text:
         return None
+
+    # Step 1: Auto-Director (adds emotion & pause tags if plain text is provided)
+    if auto_director and style != "raw" and not has_emotion_tags(clean_text) and len(clean_text) >= 20:
+        annotated = enrich_with_emotions(clean_text, api_key=key)
+        if annotated != clean_text:
+            clean_text = annotated
 
     chunks = split_text_into_chunks(clean_text, max_chunk_chars=2500)
     if not chunks:
@@ -204,6 +215,7 @@ def speak(
     style: str = "energetic",
     custom_prompt: Optional[str] = None,
     api_key: Optional[str] = None,
+    auto_director: bool = True,
     output_file: Optional[str] = None,
     model: str = "gemini-2.5-flash-preview-tts",
 ) -> bool:
@@ -217,6 +229,7 @@ def speak(
         style=style,
         custom_prompt=custom_prompt,
         api_key=api_key,
+        auto_director=auto_director,
         model=model,
     )
     if not wav_bytes:
