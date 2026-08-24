@@ -50,28 +50,50 @@ def print_styles():
     print("=" * 60)
 
 
+from .config import (
+    load_config,
+    set_api_key,
+    set_default_style,
+    set_default_voice,
+    get_default_style,
+    get_default_voice,
+    clear_config,
+    resolve_api_key,
+    CONFIG_FILE,
+)
+
+
 def handle_config_command(args):
     """Handles the `tts config` subcommand."""
     if args.set_key:
         set_api_key(args.set_key)
+    elif args.set_style:
+        set_default_style(args.set_style)
+    elif args.set_voice:
+        set_default_voice(args.set_voice)
     elif args.clear:
         clear_config()
     elif args.show:
         cfg = load_config()
         key = cfg.get("api_key", "")
+        style = cfg.get("default_style", "energetic")
+        voice = cfg.get("default_voice", "Puck")
+        print("=" * 60)
+        print("⚙️  GEMINI VOICE TTS CONFIGURATION")
+        print("=" * 60)
         if key:
             masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
-            print(f"🔑 Stored API Key: {masked}")
-            print(f"📁 Config location: {CONFIG_FILE}")
+            print(f"🔑 API Key        : {masked}")
         else:
             resolved = resolve_api_key(prompt_if_missing=False)
-            if resolved:
-                masked = resolved[:6] + "..." + resolved[-4:] if len(resolved) > 10 else "***"
-                print(f"🔑 Active API Key (from env/registry): {masked}")
-            else:
-                print("ℹ️ No API key configured. Run 'gemini-tts config --set-key <KEY>' to save one.")
+            masked = (resolved[:6] + "..." + resolved[-4:]) if (resolved and len(resolved) > 10) else "Not set"
+            print(f"🔑 API Key (Env)  : {masked}")
+        print(f"🎭 Default Style  : {style}")
+        print(f"🎙️ Default Voice  : {voice}")
+        print(f"📁 Config File    : {CONFIG_FILE}")
+        print("=" * 60)
     else:
-        print("Usage: gemini-tts config [--set-key KEY | --show | --clear]")
+        print("Usage: gemini-tts config [--set-key KEY | --set-style STYLE | --set-voice VOICE | --show | --clear]")
 
 
 def main():
@@ -81,6 +103,9 @@ def main():
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
 
+    current_default_voice = get_default_voice()
+    current_default_style = get_default_style()
+
     parser = argparse.ArgumentParser(
         prog="gemini-tts",
         description="🔊 Gemini Voice TTS – Free, natural & energetic Text-to-Speech powered by Google AI Studio.",
@@ -88,31 +113,32 @@ def main():
         epilog="""
 Examples:
   gemini-tts                                     # Reads current clipboard text aloud
-  gemini-tts "Hello! [excited] This is awesome!"  # Speaks text with emotion tags
-  gemini-tts --listen                            # Auto-reads anything copied via Ctrl+C
-  gemini-tts --hotkey                            # Reads selected text when Ctrl+Alt+S is pressed
-  gemini-tts --file book.txt --output audio.wav  # Synthesizes text file to WAV
-  gemini-tts config --set-key <AI_STUDIO_KEY>    # Saves your API key permanently
+  gemini-tts --listen                            # Auto-reads on Double-Ctrl+C (Ctrl+C+C)
+  gemini-tts config --set-style uwu              # Permanently set default style to uwu/wifey
+  gemini-tts config --set-voice Aoede            # Permanently set default voice to Aoede
+  gemini-tts config --show                       # Display current configuration
         """,
     )
 
     # Subcommands
     subparsers = parser.add_subparsers(dest="subcommand", help="Subcommands")
-    config_parser = subparsers.add_parser("config", help="Manage API key and settings")
+    config_parser = subparsers.add_parser("config", help="Manage API key, default style, and voice")
     config_parser.add_argument("--set-key", "-k", help="Store your Google Gemini API key")
+    config_parser.add_argument("--set-style", "-s", choices=list(STYLE_PRESETS.keys()), help="Set permanent default style (e.g. uwu, wifey, crazy)")
+    config_parser.add_argument("--set-voice", "-v", choices=AVAILABLE_VOICES, help="Set permanent default voice (e.g. Aoede, Puck, Kore)")
     config_parser.add_argument("--show", action="store_true", help="Display current configuration")
     config_parser.add_argument("--clear", action="store_true", help="Remove stored configuration")
 
     # Main arguments
     parser.add_argument("text", nargs="*", help="Text to speak (reads clipboard if omitted)")
     parser.add_argument("--clipboard", "-c", action="store_true", help="Read text from clipboard")
-    parser.add_argument("--listen", "-l", action="store_true", help="Live mode: auto-speaks newly copied text (Ctrl+C)")
+    parser.add_argument("--listen", "-l", action="store_true", help="Live mode: auto-speaks newly copied text (Double-Ctrl+C)")
     parser.add_argument("--hotkey", "-hk", action="store_true", help="Global shortcut mode (Ctrl+Alt+S)")
     parser.add_argument("--file", "-f", help="Read text from file")
     parser.add_argument("--watch", "-w", help="Watch file and speak newly appended content")
     parser.add_argument("--output", "-o", help="Save synthesized audio to a .wav file instead of playing")
-    parser.add_argument("--voice", "-v", default="Puck", choices=AVAILABLE_VOICES, help="Voice persona (default: Puck)")
-    parser.add_argument("--style", "-s", default="energetic", choices=list(STYLE_PRESETS.keys()), help="Style preset (default: energetic)")
+    parser.add_argument("--voice", "-v", default=current_default_voice, choices=AVAILABLE_VOICES, help=f"Voice persona (default: {current_default_voice})")
+    parser.add_argument("--style", "-s", default=current_default_style, choices=list(STYLE_PRESETS.keys()), help=f"Style preset (default: {current_default_style})")
     parser.add_argument("--prompt", "-p", help="Custom director prompt (overrides --style)")
     parser.add_argument("--api-key", help="Explicit Gemini API key for this run")
     parser.add_argument("--list-voices", action="store_true", help="List all available voice personalities")

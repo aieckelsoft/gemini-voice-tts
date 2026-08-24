@@ -1,7 +1,6 @@
 """
-Configuration and API key management for Gemini Voice TTS.
-Handles interactive setup, local persistence (~/.gemini_tts/config.json),
-environment variables, and Windows Registry.
+Configuration and settings management for Gemini Voice TTS.
+Handles API keys, default voice, and default style preferences.
 """
 
 import json
@@ -33,14 +32,7 @@ def save_config(config: dict) -> None:
 
 
 def resolve_api_key(explicit_key: Optional[str] = None, prompt_if_missing: bool = True) -> Optional[str]:
-    """
-    Finds the Gemini API Key from:
-    1. Explicit CLI argument
-    2. GEMINI_API_KEY or GOOGLE_API_KEY environment variables
-    3. User config file (~/.gemini_tts/config.json)
-    4. Windows User Registry (HKCU\\Environment)
-    5. Interactive prompt (if prompt_if_missing is True)
-    """
+    """Finds the Gemini API Key from CLI argument, env var, config file, or Windows Registry."""
     if explicit_key and explicit_key.strip():
         return explicit_key.strip()
 
@@ -55,7 +47,7 @@ def resolve_api_key(explicit_key: Optional[str] = None, prompt_if_missing: bool 
     if config.get("api_key"):
         return config["api_key"].strip()
 
-    # 3. Windows Registry (User Environment)
+    # 3. Windows Registry
     if sys.platform == "win32":
         try:
             import winreg
@@ -78,13 +70,12 @@ def resolve_api_key(explicit_key: Optional[str] = None, prompt_if_missing: bool 
 
 
 def prompt_for_api_key() -> Optional[str]:
-    """Interactively guides the user to set up their free Google AI Studio API key."""
+    """Interactively prompts user for Google AI Studio API key."""
     print("=" * 65)
     print("🔑 Google Gemini API Key erforderlich / Setup")
     print("=" * 65)
     print("Du benötigst einen kostenlosen Gemini API Key von Google AI Studio:")
     print(" 👉 Erstelle deinen Key gratis hier: https://aistudio.google.com/apikey")
-    print(" (Keine Kreditkarte erforderlich, 100% kostenloser Free Tier)")
     print("-" * 65)
 
     try:
@@ -97,13 +88,11 @@ def prompt_for_api_key() -> Optional[str]:
         print("❌ Kein Key eingegeben.")
         return None
 
-    # Save to config file
     config = load_config()
     config["api_key"] = entered_key
     save_config(config)
-    print(f"✅ API Key wurde sicher gespeichert in: {CONFIG_FILE}")
+    print(f"✅ API Key gespeichert in: {CONFIG_FILE}")
 
-    # On Windows, also offer to persist to user environment
     if sys.platform == "win32":
         try:
             import winreg
@@ -116,11 +105,39 @@ def prompt_for_api_key() -> Optional[str]:
 
 
 def set_api_key(key: str) -> None:
-    """Explicitly sets and persists the API key."""
+    """Saves API key to config."""
     config = load_config()
     config["api_key"] = key.strip()
     save_config(config)
     print(f"✅ API Key gespeichert in {CONFIG_FILE}")
+
+
+def set_default_style(style: str) -> None:
+    """Sets permanent default style (e.g. 'uwu', 'wifey', 'energetic', 'crazy')."""
+    config = load_config()
+    config["default_style"] = style.strip()
+    save_config(config)
+    print(f"✅ Standard-Stil dauerhaft gesetzt auf: '{style}' ({CONFIG_FILE})")
+
+
+def set_default_voice(voice: str) -> None:
+    """Sets permanent default voice (e.g. 'Aoede', 'Puck', 'Kore')."""
+    config = load_config()
+    config["default_voice"] = voice.strip()
+    save_config(config)
+    print(f"✅ Standard-Stimme dauerhaft gesetzt auf: '{voice}' ({CONFIG_FILE})")
+
+
+def get_default_style() -> str:
+    """Gets configured default style, falling back to 'energetic'."""
+    config = load_config()
+    return config.get("default_style", "energetic")
+
+
+def get_default_voice() -> str:
+    """Gets configured default voice, falling back to 'Puck'."""
+    config = load_config()
+    return config.get("default_voice", "Puck")
 
 
 def clear_config() -> None:
