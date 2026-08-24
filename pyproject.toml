@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gemini-voice-tts"
-version = "1.0.0"
+version = "1.1.0"
 description = "Expressive, energetic, and free Text-to-Speech CLI & Python library powered by Google AI Studio (Gemini)."
 readme = "README.md"
 authors = [

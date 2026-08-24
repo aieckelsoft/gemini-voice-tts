@@ -139,6 +139,21 @@ tts --style storyteller "Es war einmal eine UEFN Arena..."
 
 ---
 
+## 📊 Text Length & Auto-Chunking (How Much Text Can You Read?)
+
+| Text Length | Single Request | With Gemini Voice TTS | Best For |
+|---|---|---|---|
+| **1 – 3 Paragraphs** (~500 – 2,500 chars) | ✅ Optimal | ⚡ Instant Render (~1–2s) | Agent responses, chat messages, UI prompts |
+| **1 Full Page** (~3,000 – 5,000 chars) | ⚠️ Near API Token Limit | ⚡ 1–2 Chunks (Seamless) | Blog posts, articles, documentation pages |
+| **Multi-Page Document** (10,000 – 50,000+ chars) | ❌ Exceeds single API turn | 🚀 **Auto-Chunking & Concatenation** | Full chapters, essays, long transcripts |
+
+### How Auto-Chunking Works:
+1. **Intelligent Splitting:** Texts exceeding ~2,500 characters are automatically split at paragraph boundaries (`\n\n`) or sentence endings (`. `, `! `, `? `). Thoughts and sentences are never cut in half.
+2. **Audio Stitching:** Each chunk is synthesized sequentially, and the raw PCM audio frames are seamlessly concatenated into a single, continuous audio stream or WAV file.
+3. **No Length Ceiling:** You can pass an entire document via `--file` or pipe without worrying about token cutoffs!
+
+---
+
 ## 💾 Save Audio to File
 
 ```bash

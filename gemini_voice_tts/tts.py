@@ -1,11 +1,14 @@
 """
-Core Gemini Text-to-Speech synthesizer with Director-Prompting and Emotion Tag support.
-Uses Google AI Studio free tier models (e.g. gemini-2.5-flash-preview-tts).
+Core Gemini Text-to-Speech synthesizer with Director-Prompting, Emotion Tag support,
+and Intelligent Auto-Chunking for arbitrarily long texts (whole pages, articles, books).
 """
 
+import io
 import os
+import re
 import sys
-from typing import Optional, Tuple
+import wave
+from typing import List, Optional
 from .config import resolve_api_key
 from .playback import pcm_to_wav, play_wav_bytes
 
@@ -50,6 +53,88 @@ STYLE_PRESETS = {
 }
 
 
+def split_text_into_chunks(text: str, max_chunk_chars: int = 2500) -> List[str]:
+    """
+    Intelligently splits long text into digestible chunks at paragraph or sentence boundaries.
+    Prevents token cutoffs while preserving natural speaking cadence and thought continuity.
+    """
+    clean = text.strip()
+    if len(clean) <= max_chunk_chars:
+        return [clean] if clean else []
+
+    chunks: List[str] = []
+    # 1. Split by paragraphs
+    paragraphs = re.split(r"\n\s*\n", clean)
+    current_chunk: List[str] = []
+    current_len = 0
+
+    for para in paragraphs:
+        p = para.strip()
+        if not p:
+            continue
+
+        # If a single paragraph is larger than max_chunk_chars, split by sentences
+        if len(p) > max_chunk_chars:
+            sentences = re.split(r"(?<=[.!?])\s+", p)
+            for sent in sentences:
+                s = sent.strip()
+                if not s:
+                    continue
+                if current_len + len(s) + 1 > max_chunk_chars:
+                    if current_chunk:
+                        chunks.append(" ".join(current_chunk))
+                        current_chunk = []
+                        current_len = 0
+                current_chunk.append(s)
+                current_len += len(s) + 1
+        else:
+            if current_len + len(p) + 2 > max_chunk_chars:
+                if current_chunk:
+                    chunks.append("\n\n".join(current_chunk))
+                    current_chunk = []
+                    current_len = 0
+            current_chunk.append(p)
+            current_len += len(p) + 2
+
+    if current_chunk:
+        chunks.append("\n\n".join(current_chunk))
+
+    return chunks
+
+
+def _synthesize_single_chunk(
+    chunk_text: str,
+    client,
+    types_module,
+    voice: str,
+    director_note: str,
+    model: str = "gemini-2.5-flash-preview-tts",
+) -> Optional[bytes]:
+    """Synthesizes a single chunk and returns raw PCM bytes."""
+    full_prompt = f"{director_note}\n\nSpeaker: {chunk_text}" if director_note else chunk_text
+
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=full_prompt,
+            config=types_module.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types_module.SpeechConfig(
+                    voice_config=types_module.VoiceConfig(
+                        prebuilt_voice_config=types_module.PrebuiltVoiceConfig(
+                            voice_name=voice,
+                        )
+                    )
+                ),
+            ),
+        )
+        audio_part = response.candidates[0].content.parts[0]
+        return audio_part.inline_data.data
+    except Exception as e:
+        print(f"❌ Gemini TTS API error on chunk: {e}", file=sys.stderr)
+        return None
+
+
 def synthesize(
     text: str,
     voice: str = "Puck",
@@ -60,7 +145,8 @@ def synthesize(
 ) -> Optional[bytes]:
     """
     Synthesizes speech from text using Google's Gemini TTS API.
-    Returns WAV byte data on success, or None on failure.
+    Supports arbitrarily long texts via automatic intelligent chunking.
+    Returns complete WAV byte data on success, or None on failure.
     """
     key = resolve_api_key(api_key)
     if not key:
@@ -73,17 +159,11 @@ def synthesize(
     if not clean_text:
         return None
 
-    # Safety character ceiling for Free Tier token limits
-    if len(clean_text) > 4000:
-        clean_text = clean_text[:4000]
+    chunks = split_text_into_chunks(clean_text, max_chunk_chars=2500)
+    if not chunks:
+        return None
 
-    # Build prompt with Director's Notes
     director_note = custom_prompt if custom_prompt is not None else STYLE_PRESETS.get(style, STYLE_PRESETS["energetic"])
-    
-    if director_note:
-        full_prompt = f"{director_note}\n\nSpeaker: {clean_text}"
-    else:
-        full_prompt = clean_text
 
     try:
         from google import genai
@@ -91,31 +171,30 @@ def synthesize(
 
         client = genai.Client(api_key=key)
 
-        response = client.models.generate_content(
-            model=model,
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name=voice,
-                        )
-                    )
-                ),
-            ),
-        )
+        # Collect raw PCM audio from all chunks
+        all_pcm = bytearray()
+        total_chunks = len(chunks)
 
-        audio_part = response.candidates[0].content.parts[0]
-        pcm_data = audio_part.inline_data.data
-        return pcm_to_wav(pcm_data)
+        if total_chunks > 1:
+            print(f"📚 Long text detected ({len(clean_text)} chars) -> Split into {total_chunks} parts for seamless rendering...", file=sys.stderr)
+
+        for i, chunk in enumerate(chunks, 1):
+            if total_chunks > 1:
+                print(f"   ⏳ Generating part {i}/{total_chunks} ({len(chunk)} chars)...", file=sys.stderr)
+            pcm = _synthesize_single_chunk(chunk, client, types, voice, director_note, model)
+            if pcm:
+                all_pcm.extend(pcm)
+            else:
+                print(f"⚠️ Warning: Part {i} failed to synthesize.", file=sys.stderr)
+
+        if not all_pcm:
+            return None
+
+        return pcm_to_wav(bytes(all_pcm))
 
     except ImportError:
         print("❌ Error: 'google-genai' package is required.", file=sys.stderr)
         print("   Install via: pip install google-genai", file=sys.stderr)
-        return None
-    except Exception as e:
-        print(f"❌ Gemini TTS API error: {e}", file=sys.stderr)
         return None
 
 
@@ -130,6 +209,7 @@ def speak(
 ) -> bool:
     """
     Synthesizes and either plays the speech aloud or writes it to an output file.
+    Handles short paragraphs, whole pages, and long documents automatically.
     """
     wav_bytes = synthesize(
         text=text,
@@ -146,7 +226,7 @@ def speak(
         try:
             with open(output_file, "wb") as f:
                 f.write(wav_bytes)
-            print(f"💾 Saved audio to: {output_file}")
+            print(f"💾 Saved complete audio ({len(wav_bytes)} bytes) to: {output_file}")
             return True
         except Exception as e:
             print(f"❌ Error writing to {output_file}: {e}", file=sys.stderr)
