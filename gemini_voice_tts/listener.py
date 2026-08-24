@@ -1,11 +1,10 @@
 """
-Background listeners and watchers:
-1. Live clipboard watcher (automatically speaks text copied via Ctrl+C / Cmd+C)
-2. Global Windows hotkey listener (Ctrl+Alt+S captures selection and speaks)
-3. File watcher (speaks newly appended lines/paragraphs from a log/chat file)
+Background listeners:
+- Live clipboard listener with Double-Ctrl+C (Ctrl+C+C) trigger.
+- Global Windows hotkey listener (Ctrl+Alt+S).
+- File watcher.
 """
 
-import os
 import sys
 import time
 from typing import Optional
@@ -18,44 +17,77 @@ def listen_clipboard(
     style: str = "energetic",
     custom_prompt: Optional[str] = None,
     api_key: Optional[str] = None,
-    poll_interval: float = 0.4,
+    double_copy_timeout: float = 0.55,
 ) -> None:
     """
-    Continuously monitors the system clipboard.
-    Whenever new text is copied (Ctrl+C / Cmd+C), it is automatically spoken aloud.
+    Monitors the clipboard for a Double Ctrl+C (Ctrl+C+C) trigger.
+    Single Ctrl+C behaves normally (for standard copying).
+    Rapid Double Ctrl+C immediately triggers TTS.
     """
     print("=" * 65)
-    print("🎧 GEMINI LIVE-CLIPBOARD LISTENER")
+    print("🎧 GEMINI LIVE-CLIPBOARD LISTENER (Hands-Free)")
     print(f"   Voice: {voice} | Style: {style}")
-    print("   👉 Select any text in your editor, browser, or chat.")
-    print("   👉 Press Ctrl+C (or Cmd+C) -> Spoken aloud automatically!")
+    print("   👉 Highlight text & press Double-Ctrl+C (Ctrl + C + C) to speak!")
+    print("   ℹ️  Single Ctrl+C works normally without triggering TTS.")
     print("   [Press Ctrl+C in this terminal to stop]")
     print("=" * 65)
 
-    last_text = get_clipboard_text()
+    # Windows sequence counter if available
+    use_win_seq = False
+    user32 = None
+    last_seq = 0
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            last_seq = user32.GetClipboardSequenceNumber()
+            use_win_seq = True
+        except Exception:
+            pass
+
+    last_copy_time = 0.0
 
     try:
         while True:
-            time.sleep(poll_interval)
-            current_text = get_clipboard_text().strip()
+            time.sleep(0.04)
+            copy_event = False
 
-            if current_text and current_text != last_text:
-                last_text = current_text
-                # Only speak meaningful text
-                if len(current_text) >= 2:
-                    preview = current_text.replace("\n", " ")
-                    if len(preview) > 75:
-                        preview = preview[:72] + "..."
-                    print(f"\n📋 Copied text detected ({len(current_text)} chars): \"{preview}\"")
-                    speak(
-                        text=current_text,
-                        voice=voice,
-                        style=style,
-                        custom_prompt=custom_prompt,
-                        api_key=api_key,
-                    )
+            if use_win_seq:
+                current_seq = user32.GetClipboardSequenceNumber()
+                if current_seq != last_seq:
+                    last_seq = current_seq
+                    copy_event = True
+            else:
+                # Fallback for non-Windows
+                current_text = get_clipboard_text()
+                if current_text:
+                    copy_event = True
+
+            if copy_event:
+                now = time.time()
+                elapsed = now - last_copy_time
+                last_copy_time = now
+
+                # Double copy detected within the timeout window!
+                if 0.04 < elapsed < double_copy_timeout:
+                    text = get_clipboard_text().strip()
+                    if len(text) >= 2:
+                        preview = text.replace("\n", " ")
+                        if len(preview) > 75:
+                            preview = preview[:72] + "..."
+                        print(f"\n⚡ Double-Ctrl+C detected ({len(text)} chars): \"{preview}\"")
+                        speak(
+                            text=text,
+                            voice=voice,
+                            style=style,
+                            custom_prompt=custom_prompt,
+                            api_key=api_key,
+                        )
+                        # Reset timer so a third accidental tap doesn't immediately refire
+                        last_copy_time = 0.0
+
     except KeyboardInterrupt:
-        print("\n🛑 Clipboard listener stopped.")
+        print("\n🛑 Live listener stopped.")
 
 
 def run_hotkey_listener(
@@ -64,13 +96,9 @@ def run_hotkey_listener(
     custom_prompt: Optional[str] = None,
     api_key: Optional[str] = None,
 ) -> None:
-    """
-    Registers a global Windows shortcut (Ctrl+Alt+S).
-    When triggered, sends Ctrl+C to copy selected text and immediately reads it aloud.
-    """
+    """Registers a global Windows shortcut (Ctrl+Alt+S) to speak highlighted text."""
     if sys.platform != "win32":
-        print("❌ Global hotkey mode is currently only supported on Windows.", file=sys.stderr)
-        print("   Use 'gemini-tts --listen' instead for cross-platform automatic reading.", file=sys.stderr)
+        print("❌ Global hotkey mode is only supported on Windows. Use 'gemini-tts --listen' instead.", file=sys.stderr)
         return
 
     import ctypes
@@ -84,14 +112,13 @@ def run_hotkey_listener(
     HOTKEY_ID = 101
 
     if not user32.RegisterHotKey(None, HOTKEY_ID, MOD_CONTROL | MOD_ALT, VK_S):
-        print("❌ Could not register hotkey Ctrl+Alt+S. Another instance may be running.", file=sys.stderr)
+        print("❌ Could not register hotkey Ctrl+Alt+S.", file=sys.stderr)
         return
 
     print("=" * 65)
-    print("⚡ GEMINI GLOBAL HOTKEY ACTIVE: Ctrl + Alt + S")
+    print("⚡ GEMINI GLOBAL HOTKEY: Ctrl + Alt + S")
     print(f"   Voice: {voice} | Style: {style}")
-    print("   👉 Highlight any text on screen.")
-    print("   👉 Press Ctrl + Alt + S -> Text is copied and spoken immediately!")
+    print("   👉 Highlight text anywhere & press Ctrl + Alt + S to speak.")
     print("   [Press Ctrl+C in this terminal to stop]")
     print("=" * 65)
 
@@ -99,7 +126,6 @@ def run_hotkey_listener(
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
             if msg.message == 0x0312:  # WM_HOTKEY
-                # Simulate Ctrl+C
                 subprocess.run(
                     ["powershell", "-NoProfile", "-Command",
                      "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')"],
@@ -108,7 +134,7 @@ def run_hotkey_listener(
                 time.sleep(0.12)
                 text = get_clipboard_text().strip()
                 if text:
-                    print(f"\n⚡ Hotkey triggered! ({len(text)} chars)")
+                    print(f"\n⚡ Hotkey triggered ({len(text)} chars)")
                     speak(
                         text=text,
                         voice=voice,
@@ -134,6 +160,7 @@ def watch_file(
     poll_interval: float = 1.0,
 ) -> None:
     """Monitors a file and speaks new content as it is appended."""
+    import os
     print(f"👁️  Watching file: {filepath} (Press Ctrl+C to stop)...")
     last_content = ""
     last_mtime = 0.0
@@ -157,7 +184,7 @@ def watch_file(
             if content != last_content:
                 new_text = content[len(last_content):].strip()
                 if new_text:
-                    print(f"\n📄 New file content detected ({len(new_text)} chars)...")
+                    print(f"\n📄 New file content ({len(new_text)} chars)...")
                     speak(
                         text=new_text,
                         voice=voice,
