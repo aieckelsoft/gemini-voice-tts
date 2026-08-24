@@ -67,12 +67,12 @@ tts --voice Puck --style energetic "Lass uns loslegen!"
 | Voice | Character | Style Presets |
 |---|---|---|
 | **`Puck`** *(Default)* | Energetic, expressive, dynamic | **`energetic`** *(Default)*: Lively, vibrant intonation |
-| **`Kore`** | Clear, professional, articulate | **`casual`**: Relaxed, conversational |
-| **`Charon`** | Deep, authoritative, masculine | **`storyteller`**: Immersive audiobook narrator |
-| **`Fenrir`** | Bold, commanding, powerful | **`tech`**: Crisp, precise technical delivery |
-| **`Aoede`** | Warm, melodic, gentle | **`news`**: Clear broadcast anchor |
-| **`Leda`** | Soft, calm, reassuring | **`raw`**: Direct text without director notes |
-| **`Orus` / `Perseus` / `Zephyr`** | Grounded / Neutral / Modern | |
+| **`Kore`** | Clear, professional, articulate | **`wifey`** *(or `uwu`)*: Ultra-cute, playful, kawaii anime tone |
+| **`Charon`** | Deep, authoritative, masculine | **`crazy`** *(or `random`)*: Unhinged, chaotic, theatrical energy |
+| **`Fenrir`** | Bold, commanding, powerful | **`casual`**: Relaxed, conversational |
+| **`Aoede`** | Warm, melodic, gentle | **`storyteller`**: Immersive audiobook narrator |
+| **`Leda`** | Soft, calm, reassuring | **`tech`**: Crisp, precise technical delivery |
+| **`Orus` / `Perseus` / `Zephyr`** | Grounded / Neutral / Modern | **`news`**: Clear broadcast anchor \| **`raw`**: No director notes |
 
 List all options: `tts --list-voices` or `tts --list-styles`
 

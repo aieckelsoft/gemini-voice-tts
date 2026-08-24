@@ -8,7 +8,8 @@ import sys
 from typing import Optional
 from .config import resolve_api_key
 
-DIRECTOR_PROMPT = """You are an expert voice-acting director preparing text for expressive Text-to-Speech synthesis.
+DIRECTOR_PROMPTS = {
+    "default": """You are an expert voice-acting director preparing text for expressive Text-to-Speech synthesis.
 Analyze the emotional tone and rhythm of the following text, and enrich it with appropriate inline emotion tags in square brackets (e.g. [excited], [energetic], [happy], [curious], [whisper], [thoughtful], [confident]) and natural pauses in parentheses (e.g. (kurze Pause)).
 
 RULES:
@@ -17,21 +18,41 @@ RULES:
 3. Return ONLY the annotated text. Do NOT include any explanations, greetings, or markdown code blocks.
 
 Text:
+""",
+    "wifey": """You are a kawaii anime / affectionate wifey voice director.
+Enrich the following text with ultra-cute, playful, affectionate tags like [sweet], [giggle], [whisper], [happy], [shy], [playful], [affectionate] and natural cute pauses like (kichert leise), (cute pause), (süße Pause).
+
+RULES:
+1. Do NOT alter the original wording.
+2. Return ONLY the annotated text without code blocks or preambles.
+
+Text:
+""",
+    "crazy": """You are a chaotic, wildly theatrical, manic voice director.
+Enrich the following text with unhinged, unpredictable, hyper-energetic tags like [manic], [shouting], [whisper], [laughing], [excited], [sarcastic], [hyper] and pauses like (irres Lachen), (plötzliche Pause), (wildes Kichern).
+
+RULES:
+1. Do NOT alter the original wording.
+2. Return ONLY the annotated text without code blocks or preambles.
+
+Text:
 """
+}
 
 
 def has_emotion_tags(text: str) -> bool:
     """Checks if the text already contains inline emotion tags like [excited] or (pause)."""
-    return bool(re.search(r"\[(excited|energetic|happy|curious|whisper|thoughtful|confident|sarcastic|fast|sad|calm)\]", text, re.IGNORECASE))
+    return bool(re.search(r"\[(excited|energetic|happy|curious|whisper|thoughtful|confident|sarcastic|fast|sad|calm|sweet|giggle|shy|playful|affectionate|manic|shouting|laughing|hyper)\]", text, re.IGNORECASE))
 
 
 def enrich_with_emotions(
     text: str,
+    style: str = "energetic",
     api_key: Optional[str] = None,
     model: str = "gemini-3.1-flash-lite-preview",
 ) -> str:
     """
-    Analyzes plain text and injects expressive emotion and pause tags.
+    Analyzes plain text and injects expressive emotion and pause tags based on the active style.
     If the text already contains tags, it is returned unchanged.
     """
     clean_text = text.strip()
@@ -42,13 +63,21 @@ def enrich_with_emotions(
     if not key:
         return clean_text
 
+    # Select director persona
+    if style in ("wifey", "uwu"):
+        prompt_template = DIRECTOR_PROMPTS["wifey"]
+    elif style in ("crazy", "random"):
+        prompt_template = DIRECTOR_PROMPTS["crazy"]
+    else:
+        prompt_template = DIRECTOR_PROMPTS["default"]
+
     try:
         from google import genai
 
         client = genai.Client(api_key=key)
         response = client.models.generate_content(
             model=model,
-            contents=DIRECTOR_PROMPT + clean_text,
+            contents=prompt_template + clean_text,
         )
         if response and response.text:
             annotated = response.text.strip()
@@ -57,8 +86,7 @@ def enrich_with_emotions(
                 lines = annotated.split("\n")
                 annotated = "\n".join(lines[1:-1]).strip()
             return annotated
-    except Exception as e:
-        # Graceful fallback: return original text if AI director fails
+    except Exception:
         pass
 
     return clean_text

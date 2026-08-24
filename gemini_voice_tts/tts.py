@@ -33,6 +33,28 @@ STYLE_PRESETS = {
         "vibrant intonation, realistic pauses, and an authentic conversational flow. "
         "Respect all [emotion] and (pause) cues in the script precisely."
     ),
+    "wifey": (
+        "Director's Note: Read the following text in an ultra-cute, sweet, affectionate, "
+        "and playful anime kawaii wifey tone. Use gentle giggles, soft sighs, blushing inflections, "
+        "and adorable expressiveness. Respect all [sweet], [giggle], [whisper], [shy], [affectionate] cues."
+    ),
+    "uwu": (
+        "Director's Note: Read the following text in an ultra-cute, sweet, affectionate, "
+        "and playful anime kawaii wifey tone. Use gentle giggles, soft sighs, blushing inflections, "
+        "and adorable expressiveness. Respect all [sweet], [giggle], [whisper], [shy], [affectionate] cues."
+    ),
+    "crazy": (
+        "Director's Note: Read the following text in a wildly chaotic, theatrical, manic, "
+        "unpredictable, and hyper-energetic tone. Swing dynamically between intense excitement, "
+        "sarcastic whispers, sudden shouts, and bursts of unhinged energy. "
+        "Respect all [manic], [shouting], [whisper], [laughing], [hyper], [sarcastic] cues."
+    ),
+    "random": (
+        "Director's Note: Read the following text in a wildly chaotic, theatrical, manic, "
+        "unpredictable, and hyper-energetic tone. Swing dynamically between intense excitement, "
+        "sarcastic whispers, sudden shouts, and bursts of unhinged energy. "
+        "Respect all [manic], [shouting], [whisper], [laughing], [hyper], [sarcastic] cues."
+    ),
     "casual": (
         "Director's Note: Read the following text in a relaxed, friendly, natural, "
         "and conversational tone, like talking to a close teammate or friend."
@@ -164,9 +186,9 @@ def synthesize(
     if not clean_text:
         return None
 
-    # Step 1: Auto-Director (adds emotion & pause tags if plain text is provided)
-    if auto_director and style != "raw" and not has_emotion_tags(clean_text) and len(clean_text) >= 20:
-        annotated = enrich_with_emotions(clean_text, api_key=key)
+    # Step 1: Auto-Director (adds emotion & pause tags based on the active style)
+    if auto_director and style != "raw" and not has_emotion_tags(clean_text) and len(clean_text) >= 15:
+        annotated = enrich_with_emotions(clean_text, style=style, api_key=key)
         if annotated != clean_text:
             clean_text = annotated
 

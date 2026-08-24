@@ -10,7 +10,7 @@ from .clipboard import get_clipboard_text
 from .tts import speak, AVAILABLE_VOICES, STYLE_PRESETS
 from .listener import listen_clipboard, run_hotkey_listener, watch_file
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 def print_voices():
