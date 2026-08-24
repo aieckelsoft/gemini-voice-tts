@@ -131,30 +131,54 @@ def _synthesize_single_chunk(
     voice: str,
     director_note: str,
     model: str = "gemini-2.5-flash-preview-tts",
+    max_retries: int = 2,
 ) -> Optional[bytes]:
-    """Synthesizes a single chunk and returns raw PCM bytes."""
+    """Synthesizes a single chunk and returns raw PCM bytes with auto-retry on 429."""
+    import time
     full_prompt = f"{director_note}\n\nSpeaker: {chunk_text}" if director_note else chunk_text
 
-    try:
-        response = client.models.generate_content(
-            model=model,
-            contents=full_prompt,
-            config=types_module.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types_module.SpeechConfig(
-                    voice_config=types_module.VoiceConfig(
-                        prebuilt_voice_config=types_module.PrebuiltVoiceConfig(
-                            voice_name=voice,
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=full_prompt,
+                config=types_module.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types_module.SpeechConfig(
+                        voice_config=types_module.VoiceConfig(
+                            prebuilt_voice_config=types_module.PrebuiltVoiceConfig(
+                                voice_name=voice,
+                            )
                         )
-                    )
+                    ),
                 ),
-            ),
-        )
-        audio_part = response.candidates[0].content.parts[0]
-        return audio_part.inline_data.data
-    except Exception as e:
-        print(f"❌ Gemini TTS API error on chunk: {e}", file=sys.stderr)
-        return None
+            )
+            audio_part = response.candidates[0].content.parts[0]
+            return audio_part.inline_data.data
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                # Check for daily vs burst limit
+                if "PerDay" in err_str:
+                    print("\n⚠️  Tägliches Free-Tier-Limit (10 Requests/Tag) für dieses Google AI Studio Projekt erreicht.", file=sys.stderr)
+                    print("   👉 Lösung 1: Erstelle in Google AI Studio ein weiteres Projekt (kostenlos) und trage den Key ein: tts config --set-key <KEY>", file=sys.stderr)
+                    print("   👉 Lösung 2: Verknüpfe ein Billing-Konto im Google Cloud Projekt (1000+ Requests/Tag, die ersten Millionen Tokens bleiben quasi kostenlos).", file=sys.stderr)
+                    return None
+
+                if attempt < max_retries:
+                    wait_time = 15.0
+                    import re
+                    match = re.search(r"retry in (\d+(\.\d+)?)s", err_str)
+                    if match:
+                        wait_time = min(float(match.group(1)) + 1.0, 30.0)
+                    print(f"\n⏳ Rate Limit (429). Warte {wait_time:.1f}s für automatischen Retry...", file=sys.stderr)
+                    time.sleep(wait_time)
+                    continue
+
+            print(f"❌ Gemini TTS API error on chunk: {e}", file=sys.stderr)
+            return None
+
+    return None
 
 
 from .director import enrich_with_emotions, has_emotion_tags
