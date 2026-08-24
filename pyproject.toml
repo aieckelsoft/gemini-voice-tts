@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemini-voice-tts"
+version = "1.0.0"
+description = "Expressive, energetic, and free Text-to-Speech CLI & Python library powered by Google AI Studio (Gemini)."
+readme = "README.md"
+authors = [
+    { name = "AI eckelsoft", email = "info@eckelsoft.de" }
+]
+license = { text = "MIT" }
+keywords = ["gemini", "tts", "text-to-speech", "google-ai-studio", "voice", "audio", "speech-synthesis", "ai-voice"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "google-genai>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "twine",
+    "pytest",
+]
+
+[project.scripts]
+gemini-tts = "gemini_voice_tts.cli:main"
+tts = "gemini_voice_tts.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/aieckelsoft/gemini-voice-tts"
+Repository = "https://github.com/aieckelsoft/gemini-voice-tts.git"
+Issues = "https://github.com/aieckelsoft/gemini-voice-tts/issues"
